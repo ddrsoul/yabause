@@ -254,7 +254,8 @@ int yabauseinit()
 #if defined(__JETSON__)  
   yinit.scsp_main_mode = 0;
 #else
-  yinit.scsp_main_mode = 1;
+  // 0: SCSP synced to emulated CPU time, 1: SCSP paced by the wall clock
+  yinit.scsp_main_mode = pre.getInt( "SCSP sync mode" , 1 );
 #endif
   yinit.rbg_resolution_mode = pre.getInt( "Rotate screen resolution" ,g_rotate_resolution_mode);
 #if defined(__JETSON__)
