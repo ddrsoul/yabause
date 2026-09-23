@@ -5672,14 +5672,14 @@ void ScspAsynMainRealtime(void * p) {
         }
         pthread_mutex_unlock(&sync_mutex);
 #elif defined(ARCH_IS_LINUX)    
-        time(&tm);    
-        long n = tm.tv_nsec;
+        clock_gettime(CLOCK_REALTIME, &tm);
         tm.tv_nsec += sleeptime;
-        if( n > tm.tv_nsec){
+        while (tm.tv_nsec >= 1000000000L) {
+          tm.tv_nsec -= 1000000000L;
           tm.tv_sec += 1;
         }
         pthread_mutex_lock(&sync_mutex);
-        int rtn = pthread_cond_timedwait(&sync_cnd,&sync_mutex,ctime(&tm));
+        int rtn = pthread_cond_timedwait(&sync_cnd,&sync_mutex,&tm);
         if(rtn == 0){
           for (i = 0; i < samplecnt; i += step) {
             MM68KExec(step);
