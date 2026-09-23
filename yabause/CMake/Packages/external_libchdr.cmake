@@ -36,6 +36,7 @@ ExternalProject_Add(
               -DCMAKE_BUILD_TYPE:STRING=Release 
               -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
               -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5
               ${ADDITIONAL_CMAKE_ARGS}
 )
 
