@@ -5502,10 +5502,16 @@ void ScspAsynMainCpuTime( void * p ){
     u64 m68k_done_counter = 0;
     u64 m68k_integer_part = 0;
     u64 m68k_cycle = 0;
+    u32 spins = 0;
     do {
       m68k_integer_part = getM68KCounter() >> SCSP_FRACTIONAL_BITS;
       m68k_cycle = m68k_integer_part - pre_m68k_cycle;
       if (thread_running == 0) break;
+      // Waiting for the SH2 side: don't hammer the counter's cache line
+#if defined(__aarch64__) || defined(__arm__)
+      __asm__ volatile("yield");
+#endif
+      if ((++spins & 0xFF) == 0) YabThreadYield();
     } while (m68k_cycle == 0);
 
     m68k_inc += m68k_cycle;
