@@ -6123,6 +6123,9 @@ void VIDOGLVdp2DrawEnd(void)
   Vdp2DrawRotationSync();
   FrameProfileAdd("Vdp2DrawRotationSync end");
 
+  // The rotation thread fills RBG rows after they were allocated, possibly
+  // after a VDP1 upload already covered them: upload the whole frame here
+  YglTM->dirtyY = 0;
   YglTmPush(YglTM);
 
   YglRender();

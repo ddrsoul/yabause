@@ -280,6 +280,11 @@ typedef struct {
   GLuint pixelBufferID_in[2];
   unsigned int * texture_in[2];
 
+  // texture points to a CPU-side copy of the atlas; rows from dirtyY up to
+  // yMax were written since the last upload to textureID_in[current]
+  unsigned int dirtyY;
+  int num_textures; // 2 with YABA_TEX_DBUF=1: alternate atlas textures per frame
+
 } YglTextureManager;
 
 extern YglTextureManager * YglTM;
