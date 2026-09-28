@@ -150,6 +150,15 @@ OSD_struct *OSDCoreList[] = {
 #endif
 
 
+// PGO training builds (-fprofile-generate): write the profile before shutdown,
+// the process usually dies from an unhandled SIGUSR1 while stopping threads
+#ifdef YABA_PGO_GEN
+extern "C" void __gcov_dump(void);
+#define YABA_PGO_DUMP() __gcov_dump()
+#else
+#define YABA_PGO_DUMP()
+#endif
+
 static SDL_Window* wnd;
 static SDL_GLContext glc;
 int g_EnagleFPS = 0;
@@ -504,6 +513,7 @@ int main(int argc, char** argv)
         glClearColor(0.0,0.0,0.0,1.0);
         glClear(GL_COLOR_BUFFER_BIT);        
         SDL_GL_SwapWindow(wnd);
+        YABA_PGO_DUMP();
         YabauseDeInit();
         SDL_Quit();
         return 0;
@@ -661,6 +671,7 @@ int main(int argc, char** argv)
       YabauseExec(); // exec one frame
     }
   }
+  YABA_PGO_DUMP();
   YabauseDeInit();
   SDL_Quit();
   return 0;
