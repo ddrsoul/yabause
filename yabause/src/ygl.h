@@ -605,6 +605,11 @@ typedef struct {
    GLuint smallfbotex;
    GLuint vdp1pixelBufferID;
    void * pFrameBuffer;
+   // CPU copy of pFrameBuffer so CPU reads of the VDP1 frame need no lock;
+   // cleared together with pFrameBuffer when VDP1 renders a new frame
+   void * fbCopy;
+   int fbCopySize;
+   volatile int fbCopyValid;
 
    GLuint fxaa_fbo;
    GLuint fxaa_fbotex;

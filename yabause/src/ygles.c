@@ -1082,12 +1082,23 @@ void VIDOGLVdp1ReadFrameBuffer(u32 type, u32 addr, void *out)
     YabThreadUnLock(_Ygl->mutex);
   }
 
+  const u8 *fb;
+  int locked = 0;
+
+  // Fast path: the last rendered VDP1 frame is already in CPU memory
+  if (_Ygl->fbCopyValid && !_Ygl->vpd1_running)
+  {
+    fb = (const u8 *)_Ygl->fbCopy;
+    goto decode;
+  }
+
   while (_Ygl->vpd1_running)
   {
     YabThreadYield();
   }
 
   YabThreadLock(_Ygl->mutex);
+  locked = 1;
   if (_Ygl->pFrameBuffer == NULL)
   {
     FrameProfileAdd("ReadFrameBuffer start");
@@ -1139,6 +1150,24 @@ void VIDOGLVdp1ReadFrameBuffer(u32 type, u32 addr, void *out)
     FrameProfileAdd("ReadFrameBuffer end");
   }
 
+  if (!_Ygl->fbCopyValid)
+  {
+    int size = _Ygl->rwidth * _Ygl->rheight * 4;
+    if (size != _Ygl->fbCopySize)
+    {
+      free(_Ygl->fbCopy);
+      _Ygl->fbCopy = malloc(size);
+      _Ygl->fbCopySize = _Ygl->fbCopy ? size : 0;
+    }
+    if (_Ygl->fbCopy != NULL)
+    {
+      memcpy(_Ygl->fbCopy, _Ygl->pFrameBuffer, size);
+      _Ygl->fbCopyValid = 1;
+    }
+  }
+  fb = _Ygl->fbCopyValid ? (const u8 *)_Ygl->fbCopy : (const u8 *)_Ygl->pFrameBuffer;
+
+decode:;
   int index;
   if (_Ygl->rwidth >= 640)
   {
@@ -1157,10 +1186,10 @@ void VIDOGLVdp1ReadFrameBuffer(u32 type, u32 addr, void *out)
     {
     case 1:
     {
-      u8 r = *((u8 *)(_Ygl->pFrameBuffer) + index);
-      u16 g = *((u8 *)(_Ygl->pFrameBuffer) + index + 1);
-      u8 b = *((u8 *)(_Ygl->pFrameBuffer) + index + 2);
-      u16 a = *((u8 *)(_Ygl->pFrameBuffer) + index + 3);
+      u8 r = *(fb + index);
+      u16 g = *(fb + index + 1);
+      u8 b = *(fb + index + 2);
+      u16 a = *(fb + index + 3);
       if ((a & 0x40) == 0)
       {
         *(u16 *)out = ((r >> 3) & 0x1f) | (((g >> 3) & 0x1f) << 5) | (((b >> 3) & 0x1F) << 10) | 0x8000;
@@ -1186,12 +1215,12 @@ void VIDOGLVdp1ReadFrameBuffer(u32 type, u32 addr, void *out)
     break;
     case 2:
     {
-      u32 r = *((u8 *)(_Ygl->pFrameBuffer) + index);
-      u32 g = *((u8 *)(_Ygl->pFrameBuffer) + index + 1);
-      u32 b = *((u8 *)(_Ygl->pFrameBuffer) + index + 2);
-      u32 r2 = *((u8 *)(_Ygl->pFrameBuffer) + index + 4);
-      u32 g2 = *((u8 *)(_Ygl->pFrameBuffer) + index + 5);
-      u32 b2 = *((u8 *)(_Ygl->pFrameBuffer) + index + 6);
+      u32 r = *(fb + index);
+      u32 g = *(fb + index + 1);
+      u32 b = *(fb + index + 2);
+      u32 r2 = *(fb + index + 4);
+      u32 g2 = *(fb + index + 5);
+      u32 b2 = *(fb + index + 6);
       /*  BBBBBGGGGGRRRRR */
       *(u32 *)out = (((r2 >> 3) & 0x1f) | (((g2 >> 3) & 0x1f) << 5) | (((b2 >> 3) & 0x1F) << 10) | 0x8000) |
                     ((((r >> 3) & 0x1f) | (((g >> 3) & 0x1f) << 5) | (((b >> 3) & 0x1F) << 10) | 0x8000) << 16);
@@ -1202,11 +1231,12 @@ void VIDOGLVdp1ReadFrameBuffer(u32 type, u32 addr, void *out)
   // 8bitmode
   else
   {
-    u16 r = *((u8 *)(_Ygl->pFrameBuffer) + index);
-    u16 r2 = *((u8 *)(_Ygl->pFrameBuffer) + index + 4);
+    u16 r = *(fb + index);
+    u16 r2 = *(fb + index + 4);
     *(u16 *)out = (r << 8) | (r2 << 0);
   }
-  YabThreadUnLock(_Ygl->mutex);
+  if (locked)
+    YabThreadUnLock(_Ygl->mutex);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1670,6 +1700,7 @@ void YglDeInit(void)
       free(_Ygl->levels);
     }
 
+    free(_Ygl->fbCopy);
     free(_Ygl);
   }
 }
@@ -3247,6 +3278,7 @@ void YglRenderVDP1(void)
   if (_Ygl->pFrameBuffer != NULL)
   {
     _Ygl->pFrameBuffer = NULL;
+    _Ygl->fbCopyValid = 0;
     glBindTexture(GL_TEXTURE_2D, _Ygl->smallfbotex);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, _Ygl->vdp1pixelBufferID);
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
