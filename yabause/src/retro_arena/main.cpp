@@ -238,6 +238,10 @@ int yabauseinit()
   yinit.cartpath = cartpath;
   yinit.videoformattype = VIDEOFORMATTYPE_NTSC;
   yinit.frameskip = g_frame_skip;
+  // how many frames in a row the auto frame skip may drop (1..3)
+  g_max_frame_skip = pre.getInt( "Max frame skip" , 1 );
+  if( g_max_frame_skip < 1 ) g_max_frame_skip = 1;
+  if( g_max_frame_skip > 3 ) g_max_frame_skip = 3;
   yinit.usethreads = 0;
   yinit.skip_load = 0;    
   yinit.video_filter_type = 0;

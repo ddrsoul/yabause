@@ -445,6 +445,8 @@ void ToggleRBG0(void);
 void ToggleFullScreen(void);
 void EnableAutoFrameSkip(void);
 void DisableAutoFrameSkip(void);
+// consecutive frames the auto frame skip may drop (1 = original behaviour)
+extern int g_max_frame_skip;
 void VdpResume(void);
 
 void VDP2SetFrameLimit(int mode);

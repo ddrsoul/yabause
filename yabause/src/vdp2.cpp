@@ -96,6 +96,7 @@ int g_frame_count = 0;
 static int framestoskip = 0;
 static int framesskipped = 0;
 static int skipnextframe = 0;
+int g_max_frame_skip = 1;
 static int previous_skipped = 0;
 static s64 curticks = 0;
 static s64 diffticks = 0;
@@ -765,7 +766,7 @@ void frameSkipAndLimit() {
       skipnextframe = 1;
 
       // How many frames should we skip?
-      framestoskip = 1;
+      framestoskip = g_max_frame_skip;
 
     }
 
