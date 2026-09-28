@@ -1087,6 +1087,89 @@ Vdp2 * Vdp2RestoreRegs(int line, Vdp2* lines) {
 int vdp1_frame = 0;
 int show_vdp1_frame = 0;
 u32 show_skipped_frame = 0;
+
+#if defined(ARCH_IS_LINUX) && !defined(ANDROID)
+#include <dirent.h>
+#include <unistd.h>
+
+// YABA_STATS=1: once a second print FPS and per-thread CPU load to stdout
+static void PrintFrameStats(int fps, int vdp1, u32 skipped)
+{
+  static int enabled = -1;
+  static struct { int tid; unsigned long long ticks; } prev[64];
+  static int nprev = 0;
+  static u64 prev_time = 0;
+  char line[1024];
+  int len;
+  u64 now;
+  double secs;
+  DIR *dir;
+  struct dirent *de;
+  int ncur = 0;
+  static struct { int tid; unsigned long long ticks; } cur[64];
+
+  if (enabled < 0) {
+    const char *env = getenv("YABA_STATS");
+    enabled = (env != NULL && atoi(env) != 0);
+  }
+  if (!enabled) return;
+
+  now = YabauseGetTicks();
+  secs = prev_time ? (double)(now - prev_time) / yabsys.tickfreq : 0.0;
+  prev_time = now;
+
+  len = snprintf(line, sizeof(line), "[stats] fps=%d vdp1=%d skip=%u |", fps, vdp1, skipped);
+
+  dir = opendir("/proc/self/task");
+  if (dir == NULL) return;
+  while ((de = readdir(dir)) != NULL && ncur < 64) {
+    char path[64], buf[512], comm[32] = "?";
+    char *p;
+    FILE *fp;
+    int tid = atoi(de->d_name);
+    unsigned long long utime = 0, stime = 0;
+    if (tid <= 0) continue;
+
+    snprintf(path, sizeof(path), "/proc/self/task/%d/comm", tid);
+    if ((fp = fopen(path, "r")) != NULL) {
+      if (fgets(comm, sizeof(comm), fp)) comm[strcspn(comm, "\n")] = 0;
+      fclose(fp);
+    }
+    snprintf(path, sizeof(path), "/proc/self/task/%d/stat", tid);
+    if ((fp = fopen(path, "r")) == NULL) continue;
+    p = fgets(buf, sizeof(buf), fp);
+    fclose(fp);
+    if (p == NULL || (p = strrchr(buf, ')')) == NULL) continue;
+    // fields after "(comm)": state ppid pgrp session tty tpgid flags minflt cminflt majflt cmajflt utime stime
+    if (sscanf(p + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %llu %llu", &utime, &stime) != 2) continue;
+
+    cur[ncur].tid = tid;
+    cur[ncur].ticks = utime + stime;
+    if (secs > 0) {
+      for (int i = 0; i < nprev; i++) {
+        if (prev[i].tid == tid) {
+          double pct = 100.0 * (cur[ncur].ticks - prev[i].ticks) / sysconf(_SC_CLK_TCK) / secs;
+          if (pct >= 1.0 && len < (int)sizeof(line) - 48)
+            len += snprintf(line + len, sizeof(line) - len, " %s:%.0f%%", comm, pct);
+          break;
+        }
+      }
+    }
+    ncur++;
+  }
+  closedir(dir);
+
+  memcpy(prev, cur, sizeof(cur[0]) * ncur);
+  nprev = ncur;
+  if (secs > 0) {
+    printf("%s\n", line);
+    fflush(stdout);
+  }
+}
+#else
+#define PrintFrameStats(fps, vdp1, skipped)
+#endif
+
 static void FPSDisplay(void)
 {
   static int fpsframecount = 0;
@@ -1147,6 +1230,7 @@ static void FPSDisplay(void)
     show_skipped_frame = skipped_frame;
     skipped_frame = 0;
     fpsticks = YabauseGetTicks();
+    PrintFrameStats(fps, show_vdp1_frame, show_skipped_frame);
   }
 }
 
